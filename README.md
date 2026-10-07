@@ -50,6 +50,10 @@ An anonymous attendee’s identity persists in browser storage. Clearing it, usi
 
 ## Event setup and routes
 
+Edit [event.config.ts](event.config.ts) at the repository root to customize an event without editing `src/`. Uncomment any of `name`, `slug`, `description`, `starts_at`, `ends_at`, or `is_active`. In local preview, omitted or `undefined` values fall back to [src/lib/demo.ts](src/lib/demo.ts). Set descriptions or dates to `null` to hide them; `false` closes the submission form. Restart Vite or rebuild/redeploy after changing the config. The file is public frontend configuration, so keep credentials out of it.
+
+With Supabase, create an event with the configured slug (or the demo slug when omitted). The config selects the default event and overrides its provided details; omitted details retain the database values. Explicit links to other database events retain their own details. Database IDs and questions remain tied to the database event. To close a connected event, also set `is_active = false` in Supabase; frontend configuration does not change database permissions or update database records. Dates do not automatically open or close events.
+
 ```sql
 insert into public.events(name,slug,description,starts_at,ends_at,is_active)
 values (
@@ -62,9 +66,9 @@ values (
 );
 ```
 
-- `/`: active event with the latest start date. Prefer an explicit event link when multiple events are active.
+- `/`: configured event (active events only for attendees).
 - `/e/public-health-ai-symposium`: attendee event link; use this as the QR-code destination.
-- `/moderator`: moderator dashboard for the default active event.
+- `/moderator`: moderator dashboard for the configured event.
 - `/moderator/public-health-ai-symposium`: event-specific dashboard; moderators can also review inactive events here.
 
 Set `is_active = false` to close an event to attendees. Dates are descriptive; they do not automatically open or close submissions. Event dates are displayed in UTC; submission times use the moderator’s browser timezone. Moderator accounts have access to all events, as scoped for v1.

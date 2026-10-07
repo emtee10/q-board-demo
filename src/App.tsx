@@ -19,7 +19,8 @@ import {
   MessagesSquare,
 } from "lucide-react";
 import { supabase, preview, configurationError } from "./lib/supabase";
-import { demoEvent, readDemo, saveDemo } from "./lib/demo";
+import { readDemo, saveDemo } from "./lib/demo";
+import { configuredEvent, configureDatabaseEvent } from "./lib/event";
 import { downloadCsv } from "./lib/csv";
 import { QuestionForm } from "./components/QuestionForm";
 import { QuestionCard } from "./components/QuestionCard";
@@ -79,10 +80,10 @@ function Board() {
     (async () => {
       if (configurationError) throw new Error(configurationError);
       if (preview) {
-        if (slug && slug !== demoEvent.slug)
+        if (slug && slug !== configuredEvent.slug)
           throw new Error("This event could not be found.");
         if (!cancelled) {
-          setEvent(demoEvent);
+          setEvent(configuredEvent);
           setUserId("preview");
           setQuestions(readDemo());
           setAuthorized(moderator);
@@ -93,12 +94,8 @@ function Board() {
       const role = await supabase!.rpc("is_moderator");
       if (role.error) throw role.error;
       let query = supabase!.from("events").select("*");
-      query = slug
-        ? query.eq("slug", slug)
-        : query
-            .eq("is_active", true)
-            .order("starts_at", { ascending: false })
-            .limit(1);
+      query = query.eq("slug", slug ?? configuredEvent.slug);
+      if (!moderator) query = query.eq("is_active", true);
       const result = await query.maybeSingle();
       if (result.error) throw result.error;
       if (!result.data)
@@ -112,7 +109,7 @@ function Board() {
       });
       if (data.error) throw data.error;
       if (!cancelled) {
-        setEvent(result.data);
+        setEvent(configureDatabaseEvent(result.data));
         setUserId(id);
         setAuthorized(allowed);
         setQuestions(data.data || []);
@@ -434,7 +431,7 @@ function Board() {
                   <p>
                     {moderator
                       ? "Review questions, gather perspectives, and prepare your panel."
-                      : "Ask a question. Support a perspective. Help shape our closing panel."}
+                      : event.description}
                   </p>
                 </div>
                 <div className="hero-aside">
