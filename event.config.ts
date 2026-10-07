@@ -1,10 +1,11 @@
-import type { Event } from "./src/types";
+import type { EventConfig } from "./src/lib/event";
 
 // Customize this deployment's event here. Uncomment only the fields you need.
 // Omitted (or undefined) fields use the defaults in src/lib/demo.ts in preview.
 // With Supabase, omitted details use the selected database event's values.
 // This file is bundled into the public app: do not put secrets here.
-export default {
+
+const eventConfig: EventConfig = {
   // name: "My Conference",
   // slug: "my-conference", // Used by /, /moderator, and /e/my-conference.
   // description: "A place for attendees to ask questions and share ideas.",
@@ -13,4 +14,23 @@ export default {
   // is_active: true, // false disables the attendee submission form.
   // Use null for description or dates to hide them; false is not a fallback.
   // In Supabase, create an event with the same slug and close it in the DB too.
-} satisfies Partial<Omit<Event, "id">>;
+
+  // UI copy overrides apply throughout this deployment, in both modes.
+  // Every available key and its default wording is in src/lib/demo.ts: demoText.
+  // Override only what you need; omitted/undefined keys keep their defaults.
+  // Empty strings are allowed. Text is plain text, not HTML.
+  // Use \n for line breaks in attendeeHeading and attendeeAside.
+  text: {
+  //  brandTagline: "YOUR QUESTIONS. OUR NEXT CHAPTER.",
+  //  attendeeHeading: "Welcome to our conference.",
+  //  attendeeAside: "A space for\nnew perspectives.",
+  //  questionHeading: "What would you like to ask?",
+  //  questionPlaceholder: "Share a question for the speakers…",
+  //  submitQuestion: "Send question",
+  //  guidancePanel: "Our hosts will discuss your questions during the Q&A.",
+  //  moderatorHeading: "Prepare the Q&A.",
+  //  footerMessage: "Thanks for joining us.",
+  },
+};
+
+export default eventConfig;

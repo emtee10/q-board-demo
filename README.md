@@ -54,6 +54,17 @@ Edit [event.config.ts](event.config.ts) at the repository root to customize an e
 
 With Supabase, create an event with the configured slug (or the demo slug when omitted). The config selects the default event and overrides its provided details; omitted details retain the database values. Explicit links to other database events retain their own details. Database IDs and questions remain tied to the database event. To close a connected event, also set `is_active = false` in Supabase; frontend configuration does not change database permissions or update database records. Dates do not automatically open or close events.
 
+The optional `text` section overrides standard component copy in both preview and connected mode. All keys and their current default wording are in `demoText` in [src/lib/demo.ts](src/lib/demo.ts), including headings, guidance, form labels, placeholders, buttons, status labels, accessibility labels, empty states, and app-generated messages. Override any subset; omitted or `undefined` keys use the defaults, while `""` intentionally clears text. Copy is plain text; `attendeeHeading` and `attendeeAside` support `\n` line breaks. Event descriptions still use `description`. These text overrides apply throughout the deployment, including explicit links to other events; they do not change limits, polling intervals, status values, or database error messages.
+
+```ts
+text: {
+  attendeeHeading: "Welcome to our event.\nWhat’s on your mind?",
+  questionPlaceholder: "Ask our speakers a question…",
+  submitQuestion: "Send question",
+  guidancePanel: "Selected questions will be discussed during the Q&A.",
+},
+```
+
 ```sql
 insert into public.events(name,slug,description,starts_at,ends_at,is_active)
 values (

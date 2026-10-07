@@ -1,3 +1,4 @@
+import { uiText } from "../lib/event";
 import { useState } from "react";
 import { Check, EyeOff, Star } from "lucide-react";
 import { StatusBadge } from "./QuestionCard";
@@ -19,11 +20,9 @@ export function ModeratorCard({
     setSaved("");
     try {
       await onUpdate(q.id, status, note);
-      setSaved("Saved.");
+      setSaved(uiText.noteSaved);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Could not save. Please retry.",
-      );
+      setError(e instanceof Error ? e.message : uiText.saveFailed);
     } finally {
       setBusy(false);
     }
@@ -33,7 +32,7 @@ export function ModeratorCard({
       <div className="moderator-card-top">
         <StatusBadge status={q.status} />
         <span>
-          {q.vote_count} votes ·{" "}
+          {q.vote_count} {uiText.votesLabel} ·{" "}
           {new Date(q.created_at).toLocaleString([], {
             month: "short",
             day: "numeric",
@@ -43,13 +42,13 @@ export function ModeratorCard({
         </span>
       </div>
       <h3>{q.question_text}</h3>
-      <label htmlFor={`note-${q.id}`}>Internal moderator note</label>
+      <label htmlFor={`note-${q.id}`}>{uiText.moderatorNoteLabel}</label>
       <textarea
         id={`note-${q.id}`}
         value={note}
         maxLength={5000}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="Add context for the panel…"
+        placeholder={uiText.moderatorNotePlaceholder}
         rows={2}
       />
       <div className="moderation-actions">
@@ -60,7 +59,7 @@ export function ModeratorCard({
             onClick={() => update("approved")}
           >
             <Check size={15} />
-            Approve
+            {uiText.approve}
           </button>
         )}
         {q.status !== "shortlisted" && (
@@ -70,7 +69,7 @@ export function ModeratorCard({
             onClick={() => update("shortlisted")}
           >
             <Star size={15} />
-            Shortlist
+            {uiText.shortlist}
           </button>
         )}
         {q.status !== "answered" && (
@@ -80,7 +79,7 @@ export function ModeratorCard({
             onClick={() => update("answered")}
           >
             <Check size={15} />
-            Mark answered
+            {uiText.markAnswered}
           </button>
         )}
         {q.status !== "hidden" && (
@@ -90,7 +89,7 @@ export function ModeratorCard({
             onClick={() => update("hidden")}
           >
             <EyeOff size={15} />
-            Hide
+            {uiText.hide}
           </button>
         )}
         <button
@@ -98,7 +97,7 @@ export function ModeratorCard({
           className="button subtle small"
           onClick={() => update(q.status)}
         >
-          Save note
+          {uiText.saveNote}
         </button>
       </div>
       <div className="error" role="alert">

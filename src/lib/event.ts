@@ -1,8 +1,28 @@
 import eventConfig from "../../event.config";
-import type { Event } from "../types";
-import { demoEvent } from "./demo";
+import type { Event, Status } from "../types";
+import { demoEvent, demoText } from "./demo";
 
-export type EventConfig = Partial<Omit<Event, "id">>;
+export type TextConfig = Partial<typeof demoText>;
+export type EventConfig = Partial<Omit<Event, "id">> & {
+  text?: TextConfig;
+};
+
+export function resolveText(overrides: TextConfig = {}): typeof demoText {
+  const resolved = { ...demoText };
+  for (const key of Object.keys(demoText) as (keyof typeof demoText)[]) {
+    if (overrides[key] !== undefined) resolved[key] = overrides[key];
+  }
+  return resolved;
+}
+
+export const uiText = resolveText(eventConfig.text);
+export const statusLabels: Record<Status, string> = {
+  pending: uiText.statusPending,
+  approved: uiText.statusApproved,
+  shortlisted: uiText.statusShortlisted,
+  answered: uiText.statusAnswered,
+  hidden: uiText.statusHidden,
+};
 
 export function resolveEvent(
   config: EventConfig,

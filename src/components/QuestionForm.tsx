@@ -1,3 +1,4 @@
+import { uiText } from "../lib/event";
 import { useState } from "react";
 import { ArrowUpRight, ShieldCheck } from "lucide-react";
 export function QuestionForm({
@@ -16,41 +17,37 @@ export function QuestionForm({
     setError("");
     setMessage("");
     if (!text.trim()) {
-      setError("Please enter a question.");
+      setError(uiText.questionRequired);
       return;
     }
     if (text.length > 500) {
-      setError("Please keep your question to 500 characters.");
+      setError(uiText.questionTooLong);
       return;
     }
     setBusy(true);
     try {
       await onSubmit(text.trim());
       setText("");
-      setMessage("Your question has been submitted for review.");
+      setMessage(uiText.questionSubmitted);
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "We couldn't submit your question. Please try again.",
-      );
+      setError(e instanceof Error ? e.message : uiText.submitFailed);
     } finally {
       setBusy(false);
     }
   }
   return (
     <section className="submit-panel">
-      <div className="eyebrow">MAKE ROOM FOR YOUR QUESTION</div>
-      <h2>What’s on your mind?</h2>
-      <p>Your perspective belongs in the conversation.</p>
+      <div className="eyebrow">{uiText.questionEyebrow}</div>
+      <h2>{uiText.questionHeading}</h2>
+      <p>{uiText.questionIntro}</p>
       <form onSubmit={submit}>
         <label className="sr-only" htmlFor="question">
-          Your question
+          {uiText.questionLabel}
         </label>
         <div className="textarea-wrap">
           <textarea
             id="question"
-            placeholder="What would you like our panel to discuss?"
+            placeholder={uiText.questionPlaceholder}
             value={text}
             maxLength={500}
             onChange={(e) => setText(e.target.value)}
@@ -63,13 +60,13 @@ export function QuestionForm({
           </span>
         </div>
         <p id="question-privacy" className="privacy">
-          Please don’t include personal or confidential information.
+          {uiText.questionPrivacy}
         </p>
         <button
           className="button primary submit-button"
           disabled={busy || disabled}
         >
-          {busy ? "Submitting…" : "Submit question"}
+          {busy ? uiText.submitting : uiText.submitQuestion}
           <ArrowUpRight size={18} />
         </button>
         <div role="alert" className="error">
@@ -81,10 +78,7 @@ export function QuestionForm({
       </form>
       <div className="review-note">
         <ShieldCheck size={20} />
-        <span>
-          Questions are reviewed before appearing on the board. Submissions are
-          anonymous.
-        </span>
+        <span>{uiText.questionReviewNotice}</span>
       </div>
     </section>
   );

@@ -25,10 +25,3 @@ export type Question = {
   has_voted: boolean;
   moderator_note: string | null;
 };
-export const statusLabels: Record<Status, string> = {
-  pending: "Pending",
-  approved: "Approved",
-  shortlisted: "Shortlisted",
-  answered: "Answered",
-  hidden: "Hidden",
-};

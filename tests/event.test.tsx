@@ -1,11 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import App from "../src/App";
-import { demoEvent } from "../src/lib/demo";
+import { QuestionForm } from "../src/components/QuestionForm";
+import { demoEvent, demoText } from "../src/lib/demo";
 import {
   configuredEvent,
   configureDatabaseEvent,
   resolveEvent,
+  resolveText,
 } from "../src/lib/event";
 
 vi.mock("../event.config", () => ({
@@ -15,6 +18,16 @@ vi.mock("../event.config", () => ({
     description: "Questions from our community.",
     ends_at: null,
     is_active: false,
+    text: {
+      attendeeHeading: "Community questions\n<Your turn>",
+      questionHeading: "Ask our community",
+      submitQuestion: "Send question",
+      questionRequired: "Please share a question first.",
+      anonymousAttendee: "Community member",
+      moderatorNoteLabel: "Host notes",
+      approve: "Publish",
+      footerMessage: "",
+    },
   },
 }));
 vi.mock("../src/lib/supabase", () => ({
@@ -82,7 +95,7 @@ describe("event configuration", () => {
         screen.getByText("Questions from our community."),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: /submit question/i }),
+        screen.getByRole("button", { name: "Send question" }),
       ).toBeDisabled();
     },
   );
@@ -102,5 +115,59 @@ describe("event configuration", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This event could not be found.",
     );
+  });
+
+  it("falls back independently for omitted and undefined text keys", () => {
+    expect(resolveText()).toEqual(demoText);
+    expect(
+      resolveText({
+        questionHeading: "Ask us",
+        footerMessage: "",
+        approve: undefined,
+      }),
+    ).toEqual({ ...demoText, questionHeading: "Ask us", footerMessage: "" });
+  });
+
+  it("renders text overrides in the app, form, and question cards", async () => {
+    render(<App />);
+    const heading = await screen.findByRole("heading", {
+      name: /Community questions\s*<Your turn>/,
+    });
+    expect(heading.querySelector("br")).toBeInTheDocument();
+    expect(heading).toHaveTextContent("<Your turn>");
+    expect(
+      screen.getByRole("heading", { name: "Ask our community" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Community member").length).toBeGreaterThan(0);
+    expect(screen.getByText(demoText.brandTagline)).toBeInTheDocument();
+    expect(screen.queryByText(demoText.footerMessage)).not.toBeInTheDocument();
+  });
+
+  it("uses overridden moderator labels without changing moderation actions", async () => {
+    window.history.replaceState({}, "", "/moderator");
+    render(<App />);
+    await screen.findByText("Community Conference");
+    expect(screen.getAllByLabelText("Host notes").length).toBeGreaterThan(0);
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: demoText.allStatuses }),
+    );
+    await user.click(screen.getAllByRole("button", { name: "Publish" })[0]);
+    expect(screen.getByText(demoText.noteSaved)).toBeInTheDocument();
+  });
+
+  it("uses overridden validation messages and default placeholders", async () => {
+    const submit = vi.fn();
+    render(<QuestionForm onSubmit={submit} />);
+    expect(
+      screen.getByPlaceholderText(demoText.questionPlaceholder),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Send question" }),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Please share a question first.",
+    );
+    expect(submit).not.toHaveBeenCalled();
   });
 });
