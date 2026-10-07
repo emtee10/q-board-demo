@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronUp, Check, Star } from "lucide-react";
-import { statusLabels, type Question, type Status } from "../types";
+import type { Question, Status } from "../types";
+import { uiText, statusLabels } from "../lib/event";
 export function StatusBadge({ status }: { status: Status }) {
   return (
     <span className={`badge ${status}`}>
@@ -23,7 +24,7 @@ export function VoteButton({
     <div className="vote-wrap">
       <button
         className={`vote-button ${question.has_voted ? "voted" : ""}`}
-        aria-label={`${question.has_voted ? "Remove vote" : "Upvote"}: ${question.question_text}`}
+        aria-label={`${question.has_voted ? uiText.removeVote : uiText.upvote}: ${question.question_text}`}
         aria-pressed={question.has_voted}
         disabled={busy}
         onClick={async () => {
@@ -32,7 +33,7 @@ export function VoteButton({
           try {
             await onVote();
           } catch {
-            setError("Vote failed. Please retry.");
+            setError(uiText.voteFailed);
           } finally {
             setBusy(false);
           }
@@ -64,7 +65,7 @@ export function QuestionCard({
       <div className="question-content">
         <p>{q.question_text}</p>
         <div className="question-meta">
-          <span>Anonymous attendee</span>
+          <span>{uiText.anonymousAttendee}</span>
           {["shortlisted", "answered"].includes(q.status) && (
             <StatusBadge status={q.status} />
           )}

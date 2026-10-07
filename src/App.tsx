@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import {
   BrowserRouter,
   Link,
@@ -19,18 +19,18 @@ import {
   MessagesSquare,
 } from "lucide-react";
 import { supabase, preview, configurationError } from "./lib/supabase";
-import { demoEvent, readDemo, saveDemo } from "./lib/demo";
+import { readDemo, saveDemo } from "./lib/demo";
+import {
+  configuredEvent,
+  configureDatabaseEvent,
+  uiText,
+  statusLabels,
+} from "./lib/event";
 import { downloadCsv } from "./lib/csv";
 import { QuestionForm } from "./components/QuestionForm";
 import { QuestionCard } from "./components/QuestionCard";
 import { ModeratorCard } from "./components/ModeratorCard";
-import {
-  statuses,
-  statusLabels,
-  type Event,
-  type Question,
-  type Status,
-} from "./types";
+import { statuses, type Event, type Question, type Status } from "./types";
 
 let sessionPromise: Promise<string> | undefined;
 async function ensureSession(): Promise<string> {
@@ -79,10 +79,10 @@ function Board() {
     (async () => {
       if (configurationError) throw new Error(configurationError);
       if (preview) {
-        if (slug && slug !== demoEvent.slug)
-          throw new Error("This event could not be found.");
+        if (slug && slug !== configuredEvent.slug)
+          throw new Error(uiText.eventNotFound);
         if (!cancelled) {
-          setEvent(demoEvent);
+          setEvent(configuredEvent);
           setUserId("preview");
           setQuestions(readDemo());
           setAuthorized(moderator);
@@ -93,18 +93,11 @@ function Board() {
       const role = await supabase!.rpc("is_moderator");
       if (role.error) throw role.error;
       let query = supabase!.from("events").select("*");
-      query = slug
-        ? query.eq("slug", slug)
-        : query
-            .eq("is_active", true)
-            .order("starts_at", { ascending: false })
-            .limit(1);
+      query = query.eq("slug", slug ?? configuredEvent.slug);
+      if (!moderator) query = query.eq("is_active", true);
       const result = await query.maybeSingle();
       if (result.error) throw result.error;
-      if (!result.data)
-        throw new Error(
-          "No active event was found. Please check the event link or contact the organizer.",
-        );
+      if (!result.data) throw new Error(uiText.noActiveEvent);
       const allowed = Boolean(role.data);
       const data = await supabase!.rpc("list_questions", {
         p_event_id: result.data.id,
@@ -112,15 +105,14 @@ function Board() {
       });
       if (data.error) throw data.error;
       if (!cancelled) {
-        setEvent(result.data);
+        setEvent(configureDatabaseEvent(result.data));
         setUserId(id);
         setAuthorized(allowed);
         setQuestions(data.data || []);
       }
     })()
       .catch((e) => {
-        if (!cancelled)
-          setError(e.message || "Unable to connect. Please try again.");
+        if (!cancelled) setError(e.message || uiText.connectionFailed);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -152,8 +144,7 @@ function Board() {
             if (active) setError("");
           })
           .catch(() => {
-            if (active)
-              setError("Updates are paused. Check your connection and retry.");
+            if (active) setError(uiText.updatesPaused);
           });
     }, 20000);
     return () => {
@@ -167,7 +158,7 @@ function Board() {
       await refresh();
       setError("");
     } catch {
-      setError("Could not refresh questions. Please try again.");
+      setError(uiText.refreshFailed);
     } finally {
       setRefreshing(false);
     }
@@ -177,9 +168,7 @@ function Board() {
     if (preview) {
       const all = readDemo();
       if (all.filter((q) => q.id.startsWith("local-")).length >= 5)
-        throw new Error(
-          "You have reached the limit of 5 questions for this event.",
-        );
+        throw new Error(uiText.questionLimitReached);
       const next = [
         {
           id: `local-${crypto.randomUUID()}`,
@@ -206,7 +195,7 @@ function Board() {
       throw new Error(
         error.message.includes("limit of 5")
           ? error.message
-          : "We couldn't submit your question. Please try again.",
+          : uiText.submitFailed,
       );
   }
   async function vote(q: Question) {
@@ -277,16 +266,11 @@ function Board() {
       if (error) throw error;
       const result = await supabase!.rpc("is_moderator");
       if (result.error) throw result.error;
-      if (!result.data)
-        throw new Error(
-          "This account does not have moderator access. Contact your event organizer.",
-        );
+      if (!result.data) throw new Error(uiText.moderatorAccessDenied);
       setPassword("");
       setRetry((n) => n + 1);
     } catch (e) {
-      setLoginError(
-        e instanceof Error ? e.message : "Sign-in failed. Please retry.",
-      );
+      setLoginError(e instanceof Error ? e.message : uiText.signInFailed);
     } finally {
       setLoginBusy(false);
     }
@@ -313,21 +297,20 @@ function Board() {
           <span className="brand-mark">
             <MessageSquare size={21} />
           </span>
-          q<span className="brand-light">board</span>
+          {uiText.brandPrefix}
+          <span className="brand-light">{uiText.brandSuffix}</span>
           <span className="brand-divider" />
-          <span className="brand-caption">
-            GOOD QUESTIONS. BETTER CONVERSATIONS.
-          </span>
+          <span className="brand-caption">{uiText.brandTagline}</span>
         </Link>
         <Link className="header-link" to={moderator ? base : modLink}>
           {moderator ? (
             <>
               <ArrowLeft size={15} />
-              Question board
+              {uiText.questionBoardLink}
             </>
           ) : (
             <>
-              Moderator access
+              {uiText.moderatorAccess}
               <ArrowUpRight size={15} />
             </>
           )}
@@ -335,11 +318,11 @@ function Board() {
       </header>
       {preview && (
         <div className="preview-banner">
-          Local preview · Changes stay in this browser.{" "}
+          {uiText.previewNotice}{" "}
           <Link to={moderator ? base : modLink}>
             {moderator
-              ? "View attendee experience"
-              : "Explore moderator dashboard"}
+              ? uiText.previewAttendeeLink
+              : uiText.previewModeratorLink}
             <ArrowUpRight size={13} />
           </Link>
         </div>
@@ -348,17 +331,17 @@ function Board() {
         {loading ? (
           <div className="state-panel" role="status">
             <RefreshCw className="spin" />
-            Opening the conversation…
+            {uiText.openingConversation}
           </div>
         ) : !event ? (
           <div className="state-panel">
-            <h1>Let’s get connected</h1>
+            <h1>{uiText.connectionHeading}</h1>
             <p role="alert">{error}</p>
             <button
               className="button primary"
               onClick={() => setRetry((n) => n + 1)}
             >
-              Try again
+              {uiText.retryConnection}
             </button>
           </div>
         ) : moderator && !authorized ? (
@@ -366,11 +349,11 @@ function Board() {
             <span className="login-icon">
               <LockKeyhole />
             </span>
-            <div className="eyebrow">FOR EVENT ORGANIZERS</div>
-            <h1>Moderator access</h1>
-            <p>Sign in to help shape the conversation.</p>
+            <div className="eyebrow">{uiText.organizersEyebrow}</div>
+            <h1>{uiText.moderatorAccess}</h1>
+            <p>{uiText.signInIntro}</p>
             <form onSubmit={login}>
-              <label htmlFor="email">Email address</label>
+              <label htmlFor="email">{uiText.emailLabel}</label>
               <input
                 id="email"
                 type="email"
@@ -379,7 +362,7 @@ function Board() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <label htmlFor="password">Password</label>
+              <label htmlFor="password">{uiText.passwordLabel}</label>
               <input
                 id="password"
                 type="password"
@@ -389,7 +372,7 @@ function Board() {
                 onChange={(e) => setPassword(e.target.value)}
               />
               <button className="button primary" disabled={loginBusy}>
-                {loginBusy ? "Signing in…" : "Sign in"}
+                {loginBusy ? uiText.signingIn : uiText.signIn}
                 <ArrowUpRight size={17} />
               </button>
               <div className="error" role="alert">
@@ -397,7 +380,7 @@ function Board() {
               </div>
             </form>
             <Link className="text-link" to={base}>
-              Back to the question board
+              {uiText.backToBoard}
             </Link>
           </section>
         ) : (
@@ -422,25 +405,17 @@ function Board() {
                 <div>
                   <h1>
                     {moderator ? (
-                      "Guide the conversation."
+                      uiText.moderatorHeading
                     ) : (
-                      <>
-                        Big ideas start with
-                        <br />
-                        good questions.
-                      </>
+                      <MultilineText value={uiText.attendeeHeading} />
                     )}
                   </h1>
-                  <p>
-                    {moderator
-                      ? "Review questions, gather perspectives, and prepare your panel."
-                      : "Ask a question. Support a perspective. Help shape our closing panel."}
-                  </p>
+                  <p>{moderator ? uiText.moderatorIntro : event.description}</p>
                 </div>
                 <div className="hero-aside">
                   {moderator ? (
                     <>
-                      <span className="eyebrow">MODERATOR WORKSPACE</span>
+                      <span className="eyebrow">{uiText.moderatorEyebrow}</span>
                       <button
                         className="button secondary"
                         onClick={() =>
@@ -448,7 +423,7 @@ function Board() {
                         }
                       >
                         <Download size={16} />
-                        Export CSV
+                        {uiText.exportCsv}
                       </button>
                       {!preview && (
                         <button
@@ -456,7 +431,7 @@ function Board() {
                           onClick={async () => {
                             const result = await supabase!.auth.signOut();
                             if (result.error) {
-                              setError("Sign out failed. Please retry.");
+                              setError(uiText.signOutFailed);
                               return;
                             }
                             setAuthorized(false);
@@ -464,7 +439,7 @@ function Board() {
                             navigate(base);
                           }}
                         >
-                          Sign out
+                          {uiText.signOut}
                         </button>
                       )}
                     </>
@@ -474,9 +449,7 @@ function Board() {
                         <MessagesSquare size={37} strokeWidth={1.25} />
                       </span>
                       <span>
-                        A shared space for
-                        <br />
-                        curious minds.
+                        <MultilineText value={uiText.attendeeAside} />
                       </span>
                     </>
                   )}
@@ -486,7 +459,7 @@ function Board() {
             {error && (
               <div className="connection-error" role="alert">
                 {error}
-                <button onClick={manualRefresh}>Retry</button>
+                <button onClick={manualRefresh}>{uiText.retry}</button>
               </div>
             )}
             {moderator ? (
@@ -509,7 +482,10 @@ function Board() {
                   ))}
                 </div>
                 <div className="board-toolbar">
-                  <div className="status-tabs" aria-label="Filter questions">
+                  <div
+                    className="status-tabs"
+                    aria-label={uiText.filterQuestionsLabel}
+                  >
                     {[...statuses, "all" as const].map((s) => (
                       <button
                         key={s}
@@ -521,21 +497,21 @@ function Board() {
                         }}
                       >
                         {s === "all"
-                          ? "All"
+                          ? uiText.allStatuses
                           : s === "shortlisted"
-                            ? "Shortlist"
+                            ? uiText.shortlist
                             : statusLabels[s]}
                       </button>
                     ))}
                   </div>
                   <label className="sort-select">
-                    Sort
+                    {uiText.sortLabel}
                     <select
                       value={sort}
                       onChange={(e) => setSort(e.target.value)}
                     >
-                      <option value="newest">Newest</option>
-                      <option value="top">Most votes</option>
+                      <option value="newest">{uiText.sortNewest}</option>
+                      <option value="top">{uiText.sortMostVotes}</option>
                     </select>
                   </label>
                 </div>
@@ -550,8 +526,8 @@ function Board() {
                     ))
                   ) : (
                     <Empty
-                      title="You’re all caught up."
-                      text="Questions with this status will appear here."
+                      title={uiText.moderatorEmptyHeading}
+                      text={uiText.moderatorEmptyText}
                     />
                   )}
                 </div>
@@ -561,44 +537,42 @@ function Board() {
                 <aside>
                   <QuestionForm onSubmit={submit} disabled={!event.is_active} />
                   <div className="how-it-works">
-                    <span className="eyebrow">A LITTLE GUIDANCE</span>
-                    <h3>Keep the conversation open.</h3>
-                    <p>
-                      Ask one clear question at a time. See a question that
-                      resonates? Give it an upvote.
-                    </p>
-                    <p>
-                      Our moderators will bring a selection of your questions to
-                      the closing panel.
-                    </p>
+                    <span className="eyebrow">{uiText.guidanceEyebrow}</span>
+                    <h3>{uiText.guidanceHeading}</h3>
+                    <p>{uiText.guidanceVoting}</p>
+                    <p>{uiText.guidancePanel}</p>
                   </div>
                 </aside>
                 <section className="board-section">
                   <div className="board-heading">
                     <h2>
-                      The question board <span>{publicQuestions.length}</span>
+                      {uiText.boardHeading}{" "}
+                      <span>{publicQuestions.length}</span>
                     </h2>
                     <span className="live-label">
                       <span />
-                      Updates every 20s
+                      {uiText.updatesLabel}
                     </span>
                   </div>
                   <div className="board-toolbar">
-                    <p>Different perspectives. Shared curiosity.</p>
-                    <div className="segmented" aria-label="Sort questions">
+                    <p>{uiText.boardIntro}</p>
+                    <div
+                      className="segmented"
+                      aria-label={uiText.sortQuestionsLabel}
+                    >
                       <button
                         className={sort === "top" ? "active" : ""}
                         aria-pressed={sort === "top"}
                         onClick={() => setSort("top")}
                       >
-                        Top
+                        {uiText.sortTop}
                       </button>
                       <button
                         className={sort === "newest" ? "active" : ""}
                         aria-pressed={sort === "newest"}
                         onClick={() => setSort("newest")}
                       >
-                        Newest
+                        {uiText.sortNewest}
                       </button>
                     </div>
                   </div>
@@ -613,8 +587,8 @@ function Board() {
                       ))
                     ) : (
                       <Empty
-                        title="Every conversation starts somewhere."
-                        text="Submit a question. Once reviewed, it will appear here."
+                        title={uiText.attendeeEmptyHeading}
+                        text={uiText.attendeeEmptyText}
                       />
                     )}
                   </div>
@@ -629,7 +603,7 @@ function Board() {
                         size={14}
                         className={refreshing ? "spin" : ""}
                       />
-                      Refresh
+                      {uiText.refresh}
                     </button>
                   </div>
                 </section>
@@ -641,15 +615,23 @@ function Board() {
       <footer className="site-footer">
         <span>
           <MessageSquare size={15} />
-          Made for meaningful conversations.
+          {uiText.footerMessage}
         </span>
-        <span>Anonymous by design. Thoughtful by nature.</span>
+        <span>{uiText.footerPrivacy}</span>
       </footer>
     </>
   );
 }
+function MultilineText({ value }: { value: string }) {
+  return value.split("\n").map((line, index) => (
+    <Fragment key={index}>
+      {index > 0 && <br />}
+      {line}
+    </Fragment>
+  ));
+}
 function ShieldNote() {
-  return <span>All questions are reviewed by our moderators.</span>;
+  return <span>{uiText.reviewNotice}</span>;
 }
 function Empty({ title, text }: { title: string; text: string }) {
   return (
@@ -672,8 +654,8 @@ export default function App() {
           path="*"
           element={
             <main className="state-panel">
-              <h1>Page not found</h1>
-              <Link to="/">Return to the question board</Link>
+              <h1>{uiText.pageNotFound}</h1>
+              <Link to="/">{uiText.returnToBoard}</Link>
             </main>
           }
         />
