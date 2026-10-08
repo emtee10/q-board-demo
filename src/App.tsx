@@ -29,6 +29,7 @@ import {
 import { downloadCsv } from "./lib/csv";
 import { QuestionForm } from "./components/QuestionForm";
 import { QuestionCard } from "./components/QuestionCard";
+import { SessionSelector } from "./components/SessionSelector";
 import { ModeratorCard } from "./components/ModeratorCard";
 import { statuses, type Event, type Question, type Status } from "./types";
 
@@ -54,6 +55,9 @@ function Board() {
   const navigate = useNavigate();
   const moderator = location.pathname.startsWith("/moderator");
   const [event, setEvent] = useState<Event | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    null,
+  );
   const [questions, setQuestions] = useState<Question[]>([]);
   const [userId, setUserId] = useState("");
   const [authorized, setAuthorized] = useState(false);
@@ -72,6 +76,7 @@ function Board() {
     setLoading(true);
     setError("");
     setQuestions([]);
+    setSelectedSessionId(null);
     setEvent(null);
     setAuthorized(false);
     setFilter("pending");
@@ -163,6 +168,16 @@ function Board() {
       setRefreshing(false);
     }
   }
+  const sessions = event?.sessions ?? [];
+  const selectedSession =
+    sessions.find((s) => s.id === selectedSessionId) ?? sessions[0];
+  const sessionId =
+    selectedSessionId === "" ? null : (selectedSession?.id ?? null);
+  const sessionQuestions = sessions.length
+    ? questions.filter((q) => (q.session_id ?? null) === sessionId)
+    : questions;
+  const legacyQuestions = questions.some((q) => !q.session_id);
+
   async function submit(text: string) {
     if (!event) return;
     if (preview) {
@@ -173,6 +188,7 @@ function Board() {
         {
           id: `local-${crypto.randomUUID()}`,
           event_id: event.id,
+          session_id: sessionId,
           question_text: text,
           status: "pending" as const,
           created_at: new Date().toISOString(),
@@ -189,6 +205,7 @@ function Board() {
     const { error } = await supabase!.from("questions").insert({
       event_id: event.id,
       submitter_id: userId,
+      ...(sessions.length ? { session_id: sessionId } : {}),
       question_text: text,
     });
     if (error)
@@ -277,12 +294,12 @@ function Board() {
   }
   const base = slug ? `/e/${slug}` : "/";
   const modLink = slug ? `/moderator/${slug}` : "/moderator";
-  const publicQuestions = questions.filter((q) =>
+  const publicQuestions = sessionQuestions.filter((q) =>
     ["approved", "shortlisted", "answered"].includes(q.status),
   );
   const visible = (
     moderator
-      ? questions.filter((q) => filter === "all" || q.status === filter)
+      ? sessionQuestions.filter((q) => filter === "all" || q.status === filter)
       : publicQuestions
   ).sort((a, b) =>
     sort === "newest"
@@ -419,7 +436,12 @@ function Board() {
                       <button
                         className="button secondary"
                         onClick={() =>
-                          downloadCsv(questions, event.name, event.slug)
+                          downloadCsv(
+                            sessionQuestions,
+                            event.name,
+                            event.slug,
+                            sessions,
+                          )
                         }
                       >
                         <Download size={16} />
@@ -462,6 +484,14 @@ function Board() {
                 <button onClick={manualRefresh}>{uiText.retry}</button>
               </div>
             )}
+            {sessions.length > 0 && (
+              <SessionSelector
+                sessions={sessions}
+                selectedId={sessionId}
+                onChange={setSelectedSessionId}
+                showGeneral={moderator && legacyQuestions}
+              />
+            )}
             {moderator ? (
               <section className="dashboard">
                 <div className="summary-grid">
@@ -476,7 +506,7 @@ function Board() {
                     >
                       <span>{statusLabels[s]}</span>
                       <strong>
-                        {questions.filter((q) => q.status === s).length}
+                        {sessionQuestions.filter((q) => q.status === s).length}
                       </strong>
                     </button>
                   ))}
@@ -535,7 +565,11 @@ function Board() {
             ) : (
               <div className="attendee-layout">
                 <aside>
-                  <QuestionForm onSubmit={submit} disabled={!event.is_active} />
+                  <QuestionForm
+                    key={sessionId ?? "general"}
+                    onSubmit={submit}
+                    disabled={!event.is_active}
+                  />
                   <div className="how-it-works">
                     <span className="eyebrow">{uiText.guidanceEyebrow}</span>
                     <h3>{uiText.guidanceHeading}</h3>

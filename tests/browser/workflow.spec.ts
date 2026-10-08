@@ -1,4 +1,14 @@
+import { readFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
+// Exercise the default single-list flow independently of local event settings.
+test.beforeEach(async ({ page }) => {
+  await page.route("**/event.config.ts*", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: "export default {}",
+    }),
+  );
+});
 test("attendee submission, moderation, voting, notes, export, and persistence", async ({
   page,
 }, testInfo) => {
@@ -6,6 +16,9 @@ test("attendee submission, moderation, voting, notes, export, and persistence", 
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Big ideas/ })).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Session", exact: true }),
+  ).toHaveCount(0);
   await page.screenshot({
     path: testInfo.outputPath("attendee.png"),
     fullPage: true,
@@ -109,4 +122,91 @@ test("event links resolve and unknown pages have recovery links", async ({
     .getByRole("link", { name: "Return to the question board" })
     .click();
   await expect(page.getByRole("heading", { name: /Big ideas/ })).toBeVisible();
+});
+
+test("sessions isolate submission, moderation, counts, voting, and exports", async ({
+  page,
+}, testInfo) => {
+  const sessions = [
+    {
+      id: "opening",
+      title: "Opening panel",
+      description: "Discuss our opening ideas.",
+      starts_at: "2026-11-20T09:00:00Z",
+      ends_at: "2026-11-20T10:00:00Z",
+    },
+    {
+      id: "closing",
+      title: "Closing panel",
+      description: "Reflections and next steps.",
+      starts_at: "2026-11-20T16:00:00Z",
+    },
+  ];
+  await page.route("**/event.config.ts*", (route) =>
+    route.fulfill({
+      contentType: "application/javascript",
+      body: `export default ${JSON.stringify({ sessions })}`,
+    }),
+  );
+  await page.goto("/");
+  const selector = page.getByRole("combobox", { name: "Session", exact: true });
+  await expect(selector).toHaveValue("opening");
+  await expect(page.getByText("Discuss our opening ideas.")).toBeVisible();
+  await expect(page.locator(".session-time")).toContainText("UTC");
+  await page
+    .getByLabel("Your question", { exact: true })
+    .fill("Question for opening speakers");
+  await page.getByRole("button", { name: "Submit question" }).click();
+  await expect(page.getByRole("status")).toContainText("submitted for review");
+  await selector.selectOption("closing");
+  await expect(page.getByRole("textbox")).toHaveValue("");
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await page
+    .getByLabel("Your question", { exact: true })
+    .fill("Question for closing speakers");
+  await page.getByRole("button", { name: "Submit question" }).click();
+  await expect(page.getByRole("status")).toContainText("submitted for review");
+  await page.getByRole("link", { name: "Moderator access" }).click();
+  await expect(page.getByText("Question for opening speakers")).toBeVisible();
+  await expect(page.getByText("Question for closing speakers")).toHaveCount(0);
+  await expect(
+    page.locator(".summary-grid").getByRole("button", { name: "Pending 1" }),
+  ).toBeVisible();
+  await selector.selectOption("");
+  await expect(page.locator(".moderator-card")).toHaveCount(2);
+  await selector.selectOption("opening");
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await selector.selectOption("closing");
+  await expect(page.getByText("Question for closing speakers")).toBeVisible();
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  const csv = await readFile((await (await downloaded).path())!, "utf8");
+  expect(csv).toContain('"session_id","session_title"');
+  expect(csv).toContain('"closing","Closing panel"');
+  expect(csv).not.toContain("Question for opening speakers");
+  await page.getByRole("link", { name: "Question board", exact: true }).click();
+  await expect(page.getByText("Question for opening speakers")).toBeVisible();
+  await expect(page.getByText("Question for closing speakers")).toHaveCount(0);
+  await selector.selectOption("closing");
+  await expect(page.getByText("Question for closing speakers")).toBeVisible();
+  await expect(page.getByText("Question for opening speakers")).toHaveCount(0);
+  await page.locator(".question-card").getByRole("button").click();
+  await expect(
+    page.locator(".question-card").getByRole("button"),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.screenshot({
+    path: testInfo.outputPath("sessions.png"),
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.reload();
+  await selector.selectOption("closing");
+  await expect(
+    page.locator(".question-card").getByRole("button"),
+  ).toHaveAttribute("aria-pressed", "true");
 });
